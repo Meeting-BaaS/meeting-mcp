@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/meeting-baas-meeting-mcp-badge.png)](https://mseep.ai/app/meeting-baas-meeting-mcp)
+
 # Meeting BaaS MCP Server
 [![Project Logo](MCPServer@2x.png)](https://meetingBaaS.com)
 
