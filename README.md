@@ -530,7 +530,7 @@ Establishing an HTTP/SSE session requires a non-empty `x-api-key` header. There 
 Two additional protections apply to HTTP/SSE mode:
 
 - Connections from non-loopback addresses are rejected unless `MCP_ALLOW_REMOTE=true` is set.
-- If `MCP_ALLOWED_ORIGINS` is configured, browser requests from any other `Origin` are rejected. When it is unset, browser origins are not restricted, but the `x-api-key` header is still required, so an origin alone grants no access.
+- If `MCP_ALLOWED_ORIGINS` lists specific origins, browser requests from any other `Origin` are rejected. Setting it to `*`, or leaving it unset, disables origin restriction entirely; in both cases the `x-api-key` header is still required, so an origin alone grants no access.
 
 For the stdio transport used by Claude Desktop, the key is read from the `headers.x-api-key` entry of `claude_desktop_config.json` (or the `MEETING_BAAS_API_KEY` environment variable).
 
