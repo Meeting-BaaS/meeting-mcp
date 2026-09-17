@@ -9,6 +9,7 @@
 import type { Context, TextContent } from 'fastmcp';
 import { z } from 'zod';
 import { apiRequest } from '../api/client.js';
+import { redactSecrets } from '../utils/security.js';
 import { Calendar, CalendarEvent } from '../types/index.js';
 
 // Define our session auth type
@@ -381,6 +382,24 @@ export const listUpcomingMeetingsTool: Tool<typeof upcomingMeetingsParams> = {
 };
 
 /**
+ * Subset of event-filter arguments that is safe to log.
+ *
+ * Email filters are personal data and are deliberately excluded; the object is
+ * passed through `redactSecrets` as a safety net in case a field is renamed.
+ */
+function safeEventFilters(args: {
+  status?: string;
+  startDateGte?: string;
+  startDateLte?: string;
+  updatedAtGte?: string;
+  cursor?: string;
+  limit?: number;
+}) {
+  const { status, startDateGte, startDateLte, updatedAtGte, cursor, limit } = args;
+  return redactSecrets({ status, startDateGte, startDateLte, updatedAtGte, cursor, limit });
+}
+
+/**
  * List events with comprehensive filtering
  */
 export const listEventsTool: Tool<typeof listEventsParams> = {
@@ -391,7 +410,7 @@ export const listEventsTool: Tool<typeof listEventsParams> = {
     const { session, log } = context;
     log.info('Listing calendar events', {
       calendarId: args.calendarId,
-      filters: args,
+      filters: safeEventFilters(args),
     });
 
     // Build the query parameters
@@ -850,7 +869,7 @@ export const listEventsWithCredentialsTool: Tool<typeof listEventsWithCredential
 
     log.info('Listing calendar events with provided credentials', {
       calendarId: args.calendarId,
-      filters: args,
+      filters: safeEventFilters(args),
     });
 
     // Build the query parameters
