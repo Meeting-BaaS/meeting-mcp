@@ -24,7 +24,7 @@ describe('redaction', () => {
   });
 
   it('scrubs known secret shapes from free-form strings', () => {
-    expect(redactString('use API key qrc_o-Fx3GXW3TC7_cLvatIW here')).toBe(
+    expect(redactString('use API key qrc_test_0000000000000000 here')).toBe(
       'use API key [REDACTED] here',
     );
     expect(redactString('Authorization: Bearer abcdefghijklmnop')).toContain('[REDACTED]');
