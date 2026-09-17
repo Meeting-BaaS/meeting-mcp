@@ -231,7 +231,7 @@ The server exposes several tools through the MCP protocol:
   - Parameters:
     - `type`: Type of QR code (url, email, phone, sms, text)
     - `to`: Destination for the QR code (URL, email, phone number, or text)
-    - `prompt`: AI prompt to customize the QR code (max 1000 characters). You can include your API key directly in the prompt text by typing "API key: qrc_your_key" or similar phrases.
+    - `prompt`: AI prompt to customize the QR code (max 1000 characters)
     - `style`: Style of the QR code (style_default, style_dots, style_rounded, style_crystal)
     - `useAsBotImage`: Whether to use the generated QR code as the bot avatar (default: true)
     - `template`: Template ID for the QR code (optional)
@@ -240,10 +240,6 @@ The server exposes several tools through the MCP protocol:
   - Example usage:
     ```
     "Generate a QR code with my email lazare@spoke.app that looks like a Tiger in crystal style"
-    ```
-  - Example with API key in the prompt:
-    ```
-    "Generate a QR code for my website https://example.com that looks like a mountain landscape. Use API key: qrc_my-personal-api-key-123456"
     ```
   - Example with formal parameter:
     ```
@@ -546,15 +542,11 @@ Direct authentication is also supported in many tools (named with "WithCredentia
 
 ## QR Code API Key Configuration
 
-The QR code generator tool requires an API key from QR Code AI API. There are several ways to provide this:
+The QR code generator tool requires an API key from QR Code AI API. There are two ways to provide this, checked in order:
 
-1. **Directly in the prompt**: Include your API key directly in the prompt text when using the `generateQRCode` tool, e.g., "Generate a QR code for my website https://example.com with API key: qrc_your_key"
+1. **As a parameter**: Provide your API key as the `apiKey` parameter when using the `generateQRCode` tool
 
-2. **As a parameter**: Provide your API key as the `apiKey` parameter when using the `generateQRCode` tool
-
-3. **Environment variable**: Set the `QRCODE_API_KEY` environment variable
-
-4. **Claude Desktop config**: Add the API key to your Claude Desktop configuration file located at:
+2. **Environment variable**: Set the `QRCODE_API_KEY` environment variable. The Claude Desktop config loader sets this for you from the `x-qrcode-api-key` header, configured in your Claude Desktop configuration file located at:
    - Mac/Linux: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
@@ -567,7 +559,7 @@ The QR code generator tool requires an API key from QR Code AI API. There are se
    }
    ```
 
-The tool checks for the API key in the order listed above. If no API key is provided the tool returns an error; there is no bundled default key.
+Putting the key in the `prompt` is not supported: prompts are retained in the model and client conversation context. If no API key is provided the tool returns an error; there is no bundled default key.
 
 You can obtain an API key by signing up at [QR Code AI API](https://qrcode-ai.com).
 

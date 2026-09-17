@@ -15,7 +15,7 @@ We aim to acknowledge reports within 3 business days. We will keep you informed 
 
 ## Scope
 
-The HTTP/SSE deployment mode is intended for local use. It is loopback-only by default, requires an `x-api-key` header on every request, and rejects browser requests from origins outside `MCP_ALLOWED_ORIGINS`. Deployments that set `MCP_ALLOW_REMOTE=true` are responsible for placing the server behind an authenticating, TLS-terminating proxy.
+The HTTP/SSE deployment mode is intended for local use. It is loopback-only by default and requires an `x-api-key` header on every request. Browser origins are restricted only when `MCP_ALLOWED_ORIGINS` is configured; deployments that set `MCP_ALLOW_REMOTE=true` should also set `MCP_ALLOWED_ORIGINS` if they need browser-origin enforcement, and are responsible for placing the server behind an authenticating, TLS-terminating proxy.
 
 ## Supported Versions
 

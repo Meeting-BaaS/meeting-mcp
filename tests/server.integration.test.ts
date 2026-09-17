@@ -1,31 +1,53 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createServer } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const PORT = 7391;
-const BASE_URL = `http://127.0.0.1:${PORT}`;
 const VALID_KEY = 'valid-test-key';
 
 let child: ChildProcess;
+let baseUrl: string;
 let output = '';
 
+/** Asks the OS for an unused port so parallel runs and stray processes cannot collide. */
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.unref();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+/**
+ * Waits until our server is answering. Readiness is defined as a 401 from the
+ * auth gate, so a response from an unrelated process on the same port cannot
+ * satisfy the check.
+ */
 async function waitForServer(timeoutMs = 20000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${BASE_URL}/mcp`);
+      const response = await fetch(`${baseUrl}/mcp`);
       await response.body?.cancel();
-      return;
+      if (response.status === 401) {
+        return;
+      }
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Not listening yet.
     }
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  throw new Error(`Server did not start in time. Output:\n${output}`);
+  throw new Error(`Server did not become ready in time. Output:\n${output}`);
 }
 
 /** Opens an SSE session and returns the response status without holding the stream open. */
 async function getMcp(headers: Record<string, string> = {}): Promise<Response> {
   const controller = new AbortController();
-  const response = await fetch(`${BASE_URL}/mcp`, { headers, signal: controller.signal });
+  const response = await fetch(`${baseUrl}/mcp`, { headers, signal: controller.signal });
   if (response.body) {
     await response.body.cancel();
   }
@@ -34,11 +56,14 @@ async function getMcp(headers: Record<string, string> = {}): Promise<Response> {
 }
 
 beforeAll(async () => {
+  const port = await getFreePort();
+  baseUrl = `http://127.0.0.1:${port}`;
+
   // MEETING_BAAS_API_KEY is deliberately set: the regression under test is that
   // configuring the operator key must NOT authenticate callers by itself.
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PORT: String(PORT),
+    PORT: String(port),
     MEETING_BAAS_API_KEY: 'operator-key-must-not-authenticate-callers',
     MCP_ALLOWED_ORIGINS: 'http://allowed.test',
   };

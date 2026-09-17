@@ -30,12 +30,31 @@ export const setEnvironment = (env: Environment): void => {
 // For backward compatibility and direct access
 export const API_BASE_URL = API_URLS[currentEnvironment];
 
+/**
+ * Resolves the listen port from the `PORT` environment variable.
+ *
+ * Accepts an integer in [0, 65535] (0 requests an ephemeral port) and falls
+ * back to 7017 only when `PORT` is unset. Invalid values fail fast rather than
+ * silently binding a different port than the operator configured.
+ */
+export function resolvePort(raw: string | undefined, fallback = 7017): number {
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) {
+    throw new Error(`Invalid PORT value "${raw}": expected an integer between 0 and 65535.`);
+  }
+
+  return parsed;
+}
+
 // Server configuration
 export const SERVER_CONFIG = {
   name: 'Meeting BaaS MCP',
   version: '1.1.0',
-  // Overridable so tests and alternative deployments can avoid port collisions.
-  port: Number(process.env.PORT) || 7017,
+  port: resolvePort(process.env.PORT),
   endpoint: '/mcp',
 };
 
