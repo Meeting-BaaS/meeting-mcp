@@ -103,7 +103,7 @@ Start the server:
 npm run start
 ```
 
-By default, the server runs on port 7017 and exposes the MCP endpoint at `http://localhost:7017/mcp`. It is loopback-only by default and every HTTP request must carry an `x-api-key` header.
+By default, the server runs on port 7017 and exposes the MCP endpoint at `http://localhost:7017/mcp`. It is loopback-only by default and establishing a session requires an `x-api-key` header.
 
 ## Available Tools
 
@@ -525,7 +525,7 @@ This command:
 
 ## Authentication
 
-Every HTTP/SSE request must include a Meeting BaaS API key in the `x-api-key` header. The header is evaluated on each request and there is no server-side key fallback for HTTP transports, so a request without a valid header is rejected with `401`.
+Establishing an HTTP/SSE session requires a Meeting BaaS API key in the `x-api-key` header. The key is evaluated when the session is created and there is no server-side key fallback for HTTP transports, so a session request without a valid header is rejected with `401`. Follow-up requests on that session (the `/messages` endpoint) are authorized by the session ID. If you need authentication on every request, enforce it at an authenticating proxy in front of the server.
 
 Two additional protections apply to HTTP/SSE mode:
 

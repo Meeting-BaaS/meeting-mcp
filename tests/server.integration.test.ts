@@ -31,7 +31,9 @@ async function waitForServer(timeoutMs = 20000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${baseUrl}/mcp`);
+      const response = await fetch(`${baseUrl}/mcp`, {
+        signal: AbortSignal.timeout(1000),
+      });
       await response.body?.cancel();
       if (response.status === 401) {
         return;
