@@ -9,6 +9,7 @@
 import type { Context, TextContent } from 'fastmcp';
 import { z } from 'zod';
 import { apiRequest } from '../api/client.js';
+import { redactSecrets } from '../utils/security.js';
 import { Calendar, CalendarEvent } from '../types/index.js';
 
 // Define our session auth type
@@ -391,7 +392,7 @@ export const listEventsTool: Tool<typeof listEventsParams> = {
     const { session, log } = context;
     log.info('Listing calendar events', {
       calendarId: args.calendarId,
-      filters: args,
+      filters: redactSecrets(args),
     });
 
     // Build the query parameters
@@ -850,7 +851,7 @@ export const listEventsWithCredentialsTool: Tool<typeof listEventsWithCredential
 
     log.info('Listing calendar events with provided credentials', {
       calendarId: args.calendarId,
-      filters: args,
+      filters: redactSecrets(args),
     });
 
     // Build the query parameters

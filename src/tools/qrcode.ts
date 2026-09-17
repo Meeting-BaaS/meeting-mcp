@@ -6,11 +6,11 @@
  */
 
 import { z } from 'zod';
+import { UserError } from 'fastmcp';
 import { createTool, MeetingBaaSTool } from '../utils/tool-types.js';
 
 // API configuration
 const QR_API_ENDPOINT = 'https://odin.qrcode-ai.com/api/qrcode';
-const DEFAULT_QR_API_KEY = 'qrc_o-Fx3GXW3TC7_cLvatIW1699177588300'; // Default key for demo purposes
 
 // Define available QR code styles
 const QR_STYLES = ['style_default', 'style_dots', 'style_rounded', 'style_crystal'] as const;
@@ -37,7 +37,9 @@ const generateQRCodeParams = z.object({
   apiKey: z
     .string()
     .optional()
-    .describe('Your QR Code AI API key (optional, will use default if not provided)'),
+    .describe(
+      'Your QR Code AI API key (optional; falls back to the QRCODE_API_KEY environment variable)',
+    ),
 });
 
 /**
@@ -100,7 +102,6 @@ export const generateQRCodeTool: MeetingBaaSTool<typeof generateQRCodeParams> = 
   generateQRCodeParams,
   async (args, context) => {
     const { log } = context;
-    log.info('Generating QR code', { type: args.type, prompt: args.prompt });
 
     // 1. Look for API key in the prompt text
     const promptApiKey = extractApiKeyFromPrompt(args.prompt);
@@ -109,13 +110,22 @@ export const generateQRCodeTool: MeetingBaaSTool<typeof generateQRCodeParams> = 
     const cleanedPrompt = cleanPrompt(args.prompt);
 
     // 3. Determine which API key to use (priority: 1. Param API key, 2. Prompt API key, 3. Environment variable)
-    // Check for QRCODE_API_KEY in process.env or get from config if available
-    const defaultApiKey = process.env.QRCODE_API_KEY || DEFAULT_QR_API_KEY || '';
-    const effectiveApiKey = args.apiKey || promptApiKey || defaultApiKey;
+    const environmentApiKey = process.env.QRCODE_API_KEY || '';
+    const effectiveApiKey = args.apiKey || promptApiKey || environmentApiKey;
+
+    // Log only non-sensitive metadata. Never log the raw prompt (it may embed a
+    // key) and never log the key itself.
+    log.info('Generating QR code', { type: args.type, style: args.style });
+
+    if (!effectiveApiKey) {
+      throw new UserError(
+        'No QR Code API key configured. Provide one via the apiKey parameter, include "API key: qrc_..." in the prompt, or set the QRCODE_API_KEY environment variable.',
+      );
+    }
 
     // Log which key is being used (without revealing the actual key)
     log.info(
-      `Using QR Code API key from: ${args.apiKey ? 'parameter' : promptApiKey ? 'prompt' : defaultApiKey === DEFAULT_QR_API_KEY ? 'default' : 'environment'}`,
+      `Using QR Code API key from: ${args.apiKey ? 'parameter' : promptApiKey ? 'prompt' : 'environment'}`,
     );
 
     try {

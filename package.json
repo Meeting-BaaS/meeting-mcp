@@ -1,6 +1,6 @@
 {
   "name": "meetingbaas-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for Meeting BaaS API",
   "type": "module",
   "main": "dist/index.js",
@@ -9,6 +9,8 @@
     "start": "npm run build && node dist/index.js",
     "dev": "ts-node --esm src/index.ts",
     "inspect": "fastmcp inspect src/index.ts",
+    "test": "npm run build && vitest run",
+    "test:watch": "vitest",
     "cleanup": "bash scripts/cleanup_cursor_logs.sh",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -24,7 +26,8 @@
     "lint-staged": "^15.2.0",
     "prettier": "^3.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^5.0.1"
   },
   "lint-staged": {
     "**/*.{ts,tsx,js,jsx,json,md}": "prettier --write"

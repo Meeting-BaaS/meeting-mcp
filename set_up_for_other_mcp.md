@@ -435,9 +435,9 @@ async function loadClaudeDesktopConfig() {
               serverLog(`API key loaded from config`);
             }
 
-            // Check for QR code API key in headers
-            if (serverConfig.headers['x-api-key']) {
-              const qrCodeApiKey = serverConfig.headers['x-api-key'];
+            // Check for QR code API key in headers (distinct from the Meeting BaaS key)
+            if (serverConfig.headers['x-qrcode-api-key']) {
+              const qrCodeApiKey = serverConfig.headers['x-qrcode-api-key'];
               process.env.QRCODE_API_KEY = qrCodeApiKey;
               serverLog(`QR code API key loaded from config`);
             }
@@ -740,10 +740,12 @@ npm start
 
 The server supports the following environment variables:
 
-- `MEETING_BAAS_API_KEY`: API key for authenticating with the Meeting BaaS API
+- `MEETING_BAAS_API_KEY`: API key for authenticating with the Meeting BaaS API. For HTTP/SSE transports the key must instead be supplied by the caller in the `x-api-key` header on every request; this variable is only honoured by the stdio transport.
 - `MEETING_BAAS_API_URL`: Base URL for the Meeting BaaS API (default: https://api.meetingbaas.com)
 - `PORT`: Port to run the server on (default: 3000)
 - `MCP_FROM_CLAUDE`: Set to 'true' when running from Claude Desktop
+- `MCP_ALLOW_REMOTE`: Set to 'true' to accept HTTP/SSE connections from non-loopback addresses (default: loopback-only)
+- `MCP_ALLOWED_ORIGINS`: Comma-separated list of permitted browser `Origin` values for HTTP/SSE
 - `REDIS_URL`: URL for Redis connection (optional)
 - `MPC_SERVER_URL`: URL for the MPC server (default: http://localhost:7020)
 - `MEETING_BOT_NAME`: Default name for bots

@@ -33,8 +33,9 @@ export const API_BASE_URL = API_URLS[currentEnvironment];
 // Server configuration
 export const SERVER_CONFIG = {
   name: 'Meeting BaaS MCP',
-  version: '1.0.0',
-  port: 7017,
+  version: '1.1.0',
+  // Overridable so tests and alternative deployments can avoid port collisions.
+  port: Number(process.env.PORT) || 7017,
   endpoint: '/mcp',
 };
 

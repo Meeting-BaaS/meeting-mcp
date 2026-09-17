@@ -103,7 +103,7 @@ Start the server:
 npm run start
 ```
 
-By default, the server runs on port 7017 and exposes the MCP endpoint at `http://localhost:7017/mcp`.
+By default, the server runs on port 7017 and exposes the MCP endpoint at `http://localhost:7017/mcp`. It is loopback-only by default and every HTTP request must carry an `x-api-key` header.
 
 ## Available Tools
 
@@ -235,7 +235,7 @@ The server exposes several tools through the MCP protocol:
     - `style`: Style of the QR code (style_default, style_dots, style_rounded, style_crystal)
     - `useAsBotImage`: Whether to use the generated QR code as the bot avatar (default: true)
     - `template`: Template ID for the QR code (optional)
-    - `apiKey`: Your QR Code AI API key (optional, will use default if not provided)
+    - `apiKey`: Your QR Code AI API key (optional; falls back to the `QRCODE_API_KEY` environment variable)
   - Returns: URL to the generated QR code image that can be used directly with the joinMeeting tool
   - Example usage:
     ```
@@ -464,7 +464,9 @@ Key configuration options:
 
 - `PORT`: The port the server listens on (default: 7017)
 - `API_BASE_URL`: The base URL for the Meeting BaaS API
-- `DEFAULT_API_KEY`: Default API key for testing
+- `MCP_ALLOW_REMOTE`: Set to `true` to accept connections from non-loopback addresses. Defaults to loopback-only.
+- `MCP_ALLOWED_ORIGINS`: Comma-separated list of permitted browser `Origin` values. When unset, browser origins are not restricted, but the `x-api-key` header is still required.
+- `QRCODE_API_KEY`: API key for the QR Code AI service used by `generateQRCode`
 
 ## Integration with Cursor
 
@@ -477,7 +479,7 @@ To integrate with Cursor:
    - Name: "Meeting BaaS MCP"
    - Type: "sse"
    - Server URL: "http://localhost:7017/mcp"
-   - Optionally add headers if authentication is required
+   - Add a header `x-api-key: YOUR_API_KEY` (required; requests without it are rejected)
 
 ## Development
 
@@ -527,7 +529,14 @@ This command:
 
 ## Authentication
 
-The server expects an API key in the `x-api-key` header for authentication. You can configure the default API key in the configuration.
+Every HTTP/SSE request must include a Meeting BaaS API key in the `x-api-key` header. The header is evaluated on each request and there is no server-side key fallback for HTTP transports, so a request without a valid header is rejected with `401`.
+
+Two additional protections apply to HTTP/SSE mode:
+
+- Connections from non-loopback addresses are rejected unless `MCP_ALLOW_REMOTE=true` is set.
+- If `MCP_ALLOWED_ORIGINS` is configured, browser requests from any other `Origin` are rejected. When it is unset, browser origins are not restricted, but the `x-api-key` header is still required, so an origin alone grants no access.
+
+For the stdio transport used by Claude Desktop, the key is read from the `headers.x-api-key` entry of `claude_desktop_config.json` (or the `MEETING_BAAS_API_KEY` environment variable).
 
 Direct authentication is also supported in many tools (named with "WithCredentials") where you can provide the API key directly as a parameter rather than in headers.
 
@@ -553,12 +562,12 @@ The QR code generator tool requires an API key from QR Code AI API. There are se
    ```json
    {
      "headers": {
-       "x-api-key": "qrc_your_key_here" 
+       "x-qrcode-api-key": "qrc_your_key_here"
      }
    }
    ```
 
-The tool will check for the API key in the order listed above. If no API key is provided, the default API key will be used if available.
+The tool checks for the API key in the order listed above. If no API key is provided the tool returns an error; there is no bundled default key.
 
 You can obtain an API key by signing up at [QR Code AI API](https://qrcode-ai.com).
 
