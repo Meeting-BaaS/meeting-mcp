@@ -525,7 +525,7 @@ This command:
 
 ## Authentication
 
-Establishing an HTTP/SSE session requires a Meeting BaaS API key in the `x-api-key` header. The key is evaluated when the session is created and there is no server-side key fallback for HTTP transports, so a session request without a valid header is rejected with `401`. Follow-up requests on that session (the `/messages` endpoint) are authorized by the session ID. If you need authentication on every request, enforce it at an authenticating proxy in front of the server.
+Establishing an HTTP/SSE session requires a non-empty `x-api-key` header. There is no server-side key fallback for HTTP transports, so a session request without the header is rejected with `401`. This server checks the header's presence only; an invalid key is rejected by the Meeting BaaS API when a tool is invoked. Follow-up requests on that session (the `/messages` endpoint) are authorized by the session ID. If you need authentication on every request, enforce it at an authenticating proxy in front of the server.
 
 Two additional protections apply to HTTP/SSE mode:
 
