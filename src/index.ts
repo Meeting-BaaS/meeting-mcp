@@ -11,6 +11,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
 import { SERVER_CONFIG } from './config.js';
+import {
+  getHeader,
+  isLoopbackAddress,
+  isOriginAllowed,
+  parseAllowedOrigins,
+} from './utils/security.js';
 
 // Import tools from the consolidated export
 import {
@@ -126,9 +132,9 @@ async function loadClaudeDesktopConfig() {
               serverLog(`API key loaded from config`);
             }
 
-            // Check for QR code API key in headers
-            if (serverConfig.headers['x-api-key']) {
-              const qrCodeApiKey = serverConfig.headers['x-api-key'];
+            // Check for QR code API key in headers (distinct from the Meeting BaaS key)
+            if (serverConfig.headers['x-qrcode-api-key']) {
+              const qrCodeApiKey = serverConfig.headers['x-qrcode-api-key'];
               process.env.QRCODE_API_KEY = qrCodeApiKey;
               serverLog(`QR code API key loaded from config`);
             }
@@ -184,46 +190,57 @@ async function loadClaudeDesktopConfig() {
   // Load and log the Claude Desktop config
   await loadClaudeDesktopConfig();
 
+  // Transport security configuration (read once at startup).
+  const allowRemote = process.env.MCP_ALLOW_REMOTE === 'true';
+  const allowedOrigins = parseAllowedOrigins(process.env.MCP_ALLOWED_ORIGINS);
+
   // Configure the server
   const server = new FastMCP<SessionAuth>({
     name: SERVER_CONFIG.name,
-    version: '1.0.0', // Using explicit semantic version format
-    authenticate: async (context: any) => {
-      // Use 'any' for now to avoid type errors
-      try {
-        // Get API key from headers, trying multiple possible locations
-        let apiKey =
-          // If request object exists (FastMCP newer versions)
-          (context.request?.headers && context.request.headers['x-api-key']) ||
-          // Or if headers are directly on the context (older versions)
-          (context.headers && context.headers['x-api-key']);
+    version: '1.1.0', // Using explicit semantic version format
+    authenticate: async (request: any) => {
+      // FastMCP passes the Node `http.IncomingMessage` for HTTP/SSE transports.
+      // Support both shapes for forward compatibility.
+      const req = request?.request ?? request;
+      const headers = req?.headers ?? {};
+      const remoteAddress: string | undefined =
+        req?.socket?.remoteAddress ?? req?.connection?.remoteAddress;
+      const origin = getHeader(headers, 'origin');
 
-        // If API key wasn't found in headers, try environment variable as fallback
-        if (!apiKey && process.env.MEETING_BAAS_API_KEY) {
-          apiKey = process.env.MEETING_BAAS_API_KEY;
-          serverLog(`Using API key from environment variable`);
+      try {
+        // 1. Local-only by default. The bundled `mcp-proxy` binds every
+        //    interface, so reject non-loopback peers unless explicitly allowed.
+        if (!allowRemote && !isLoopbackAddress(remoteAddress)) {
+          serverLog(`Rejected request from non-loopback address: ${remoteAddress ?? 'unknown'}`);
+          throw new Response(null, { status: 403, statusText: 'Forbidden' });
         }
 
+        // 2. Optional Origin allowlist (defense in depth for browser clients).
+        if (!isOriginAllowed(origin, allowedOrigins)) {
+          serverLog(`Rejected request from disallowed origin: ${origin}`);
+          throw new Response(null, { status: 403, statusText: 'Forbidden' });
+        }
+
+        // 3. An API key must be supplied by the caller on every request.
+        //    Deliberately no environment-variable fallback here: doing so would
+        //    authenticate any caller as the operator.
+        const apiKey = getHeader(headers, 'x-api-key');
         if (!apiKey) {
-          serverLog(`Authentication failed: No API key found`);
+          serverLog('Authentication failed: no x-api-key header supplied');
           throw new Response(null, {
             status: 401,
-            statusText:
-              'API key required in x-api-key header or as MEETING_BAAS_API_KEY environment variable',
+            statusText: 'API key required in x-api-key header',
           });
         }
 
-        // Ensure apiKey is a string
-        const keyValue = Array.isArray(apiKey) ? apiKey[0] : apiKey;
-
-        // Return a session object that will be accessible in context.session
-        return { apiKey: keyValue };
+        return { apiKey };
       } catch (error) {
+        // Preserve the intended HTTP status of our own control-flow responses.
+        if (error instanceof Response) {
+          throw error;
+        }
         serverLog(`Authentication error: ${error}`);
-        throw new Response(null, {
-          status: 500,
-          statusText: 'Authentication error',
-        });
+        throw new Response(null, { status: 500, statusText: 'Authentication error' });
       }
     },
   });
@@ -298,6 +315,10 @@ async function loadClaudeDesktopConfig() {
 
     if (!isClaudeDesktop) {
       serverLog(`Meeting BaaS MCP Server started on http://localhost:${SERVER_CONFIG.port}/mcp`);
+      serverLog(
+        `Security: ${allowRemote ? 'remote clients allowed (MCP_ALLOW_REMOTE=true)' : 'loopback-only'}; ` +
+          `allowed origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'any (x-api-key still required)'}`,
+      );
     } else {
       serverLog(`Meeting BaaS MCP Server started in stdio mode for Claude Desktop`);
     }

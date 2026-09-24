@@ -6,11 +6,11 @@
  */
 
 import { z } from 'zod';
+import { UserError } from 'fastmcp';
 import { createTool, MeetingBaaSTool } from '../utils/tool-types.js';
 
 // API configuration
 const QR_API_ENDPOINT = 'https://odin.qrcode-ai.com/api/qrcode';
-const DEFAULT_QR_API_KEY = 'qrc_o-Fx3GXW3TC7_cLvatIW1699177588300'; // Default key for demo purposes
 
 // Define available QR code styles
 const QR_STYLES = ['style_default', 'style_dots', 'style_rounded', 'style_crystal'] as const;
@@ -22,12 +22,7 @@ const QR_TYPES = ['url', 'email', 'phone', 'sms', 'text'] as const;
 const generateQRCodeParams = z.object({
   type: z.enum(QR_TYPES).describe('Type of QR code (url, email, phone, sms, text)'),
   to: z.string().describe('Destination for the QR code (URL, email, phone number, or text)'),
-  prompt: z
-    .string()
-    .max(1000)
-    .describe(
-      'AI prompt to customize the QR code (max 1000 characters). You can also include your API key in the prompt using format "API key: qrc_your_key"',
-    ),
+  prompt: z.string().max(1000).describe('AI prompt to customize the QR code (max 1000 characters)'),
   style: z.enum(QR_STYLES).default('style_default').describe('Style of the QR code'),
   useAsBotImage: z
     .boolean()
@@ -37,57 +32,10 @@ const generateQRCodeParams = z.object({
   apiKey: z
     .string()
     .optional()
-    .describe('Your QR Code AI API key (optional, will use default if not provided)'),
+    .describe(
+      'Your QR Code AI API key (optional; falls back to the QRCODE_API_KEY environment variable)',
+    ),
 });
-
-/**
- * Extracts a QR Code API key from the prompt text
- *
- * @param prompt The prompt text that might contain an API key
- * @returns The extracted API key or null if not found
- */
-function extractApiKeyFromPrompt(prompt: string): string | null {
-  const patterns = [
-    /api\s*key\s*[=:]\s*(qrc_[a-zA-Z0-9_-]+)/i,
-    /using\s*api\s*key\s*[=:]\s*(qrc_[a-zA-Z0-9_-]+)/i,
-    /with\s*api\s*key\s*[=:]\s*(qrc_[a-zA-Z0-9_-]+)/i,
-    /api\s*key\s*is\s*(qrc_[a-zA-Z0-9_-]+)/i,
-    /api\s*key\s*(qrc_[a-zA-Z0-9_-]+)/i,
-    /(qrc_[a-zA-Z0-9_-]+)/i, // Last resort to just look for the key format
-  ];
-
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-
-  return null;
-}
-
-/**
- * Cleans the prompt by removing any API key mentions
- *
- * @param prompt The original prompt text
- * @returns The cleaned prompt without API key mentions
- */
-function cleanPrompt(prompt: string): string {
-  // Remove API key phrases
-  let cleaned = prompt.replace(/(\s*api\s*key\s*[=:]\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-  cleaned = cleaned.replace(/(\s*using\s*api\s*key\s*[=:]\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-  cleaned = cleaned.replace(/(\s*with\s*api\s*key\s*[=:]\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-  cleaned = cleaned.replace(/(\s*api\s*key\s*is\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-  cleaned = cleaned.replace(/(\s*api\s*key\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-
-  // Remove just the key if it exists independently
-  cleaned = cleaned.replace(/(\s*qrc_[a-zA-Z0-9_-]+)/gi, '');
-
-  // Trim and clean up double spaces
-  cleaned = cleaned.trim().replace(/\s+/g, ' ');
-
-  return cleaned;
-}
 
 /**
  * Generate QR Code Tool
@@ -96,27 +44,29 @@ function cleanPrompt(prompt: string): string {
  */
 export const generateQRCodeTool: MeetingBaaSTool<typeof generateQRCodeParams> = createTool(
   'generateQRCode',
-  'Generate an AI-powered QR code that can be used as a bot avatar. You can include your API key directly in the prompt by saying "API key: qrc_your_key".',
+  'Generate an AI-powered QR code that can be used as a bot avatar. The QR Code AI API key is taken from the apiKey parameter or the QRCODE_API_KEY environment variable; never put it in the prompt.',
   generateQRCodeParams,
   async (args, context) => {
     const { log } = context;
-    log.info('Generating QR code', { type: args.type, prompt: args.prompt });
 
-    // 1. Look for API key in the prompt text
-    const promptApiKey = extractApiKeyFromPrompt(args.prompt);
+    // The QR Code API key comes only from an explicit parameter or the
+    // environment. Prompt-based keys are not supported: the prompt enters the
+    // model/client context and may be retained in conversation history.
+    const environmentApiKey = process.env.QRCODE_API_KEY || '';
+    const effectiveApiKey = args.apiKey || environmentApiKey;
 
-    // 2. Clean the prompt by removing API key mentions if found
-    const cleanedPrompt = cleanPrompt(args.prompt);
+    // Log only non-sensitive metadata. Never log the raw prompt and never log
+    // the key itself.
+    log.info('Generating QR code', { type: args.type, style: args.style });
 
-    // 3. Determine which API key to use (priority: 1. Param API key, 2. Prompt API key, 3. Environment variable)
-    // Check for QRCODE_API_KEY in process.env or get from config if available
-    const defaultApiKey = process.env.QRCODE_API_KEY || DEFAULT_QR_API_KEY || '';
-    const effectiveApiKey = args.apiKey || promptApiKey || defaultApiKey;
+    if (!effectiveApiKey) {
+      throw new UserError(
+        'No QR Code API key configured. Provide one via the apiKey parameter or set the QRCODE_API_KEY environment variable.',
+      );
+    }
 
     // Log which key is being used (without revealing the actual key)
-    log.info(
-      `Using QR Code API key from: ${args.apiKey ? 'parameter' : promptApiKey ? 'prompt' : defaultApiKey === DEFAULT_QR_API_KEY ? 'default' : 'environment'}`,
-    );
+    log.info(`Using QR Code API key from: ${args.apiKey ? 'parameter' : 'environment'}`);
 
     try {
       const response = await fetch(QR_API_ENDPOINT, {
@@ -128,7 +78,7 @@ export const generateQRCodeTool: MeetingBaaSTool<typeof generateQRCodeParams> = 
         body: JSON.stringify({
           type: args.type,
           to: args.to,
-          prompt: cleanedPrompt, // Use the cleaned prompt without API key
+          prompt: args.prompt,
           style: args.style,
           template: args.template || '67d30dd4d22a25b77317f407', // Default template
         }),
